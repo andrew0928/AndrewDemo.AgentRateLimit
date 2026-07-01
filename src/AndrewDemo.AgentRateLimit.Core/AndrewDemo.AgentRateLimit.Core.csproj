@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>AndrewDemo.AgentRateLimit.Core</AssemblyName>
+    <RootNamespace>AndrewDemo.AgentRateLimit.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../AndrewDemo.AgentRateLimit.Abstract/AndrewDemo.AgentRateLimit.Abstract.csproj" />
+  </ItemGroup>
+</Project>

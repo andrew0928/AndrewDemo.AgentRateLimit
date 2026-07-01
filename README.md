@@ -2,7 +2,7 @@
 
 `AndrewDemo.AgentRateLimit` 是用來設計與驗證 agent rate-limit / quota / admission-control 行為的 harness repo。
 
-目前狀態是 repo 初始化與第一版外部行為規格設計。這一版先固定 subscription credit rate limit 的可觀測行為與驗收案例，尚未開始建立 production code。
+目前狀態是 repo 初始化、第一版外部行為規格設計，以及 .NET 10 + SQLite 的第一版可執行實作。
 
 ## 設計目標
 
@@ -33,13 +33,12 @@
 └── tests/
 ```
 
-未來 code layout 會採：
+目前 code layout：
 
-- `AndrewDemo.AgentRateLimit.Abstract`：scenario、policy、decision、metric contract。
-- `AndrewDemo.AgentRateLimit.Core`：deterministic harness runner、admission controller、quota ledger、queue scheduler、metric recorder。
-- `AndrewDemo.AgentRateLimit.Simulation`：traffic profile、可控時間、provider stub、golden scenario。
-- `AndrewDemo.AgentRateLimit.Cli`：本機執行 scenario 與輸出 CSV/JSON summary。
-- `AndrewDemo.AgentRateLimit.Tests`：contract tests、scenario tests、metric assertions。
+- `AndrewDemo.AgentRateLimit.Abstract`：usage request、decision、status、audit、reconciliation contract。
+- `AndrewDemo.AgentRateLimit.Core`：SQLite-backed subscription usage service。
+- `AndrewDemo.AgentRateLimit.Cli`：本機 smoke run。
+- `AndrewDemo.AgentRateLimit.Core.Tests`：對齊 V1 規格的 xUnit 驗收測試。
 
 ## 驗收梯
 
@@ -50,11 +49,24 @@
 
 目前要 review/freeze 的第一版規格在 [subscription-credit-rate-limit-v1.md](/Users/andrew/code-work/AndrewDemo.AgentRateLimit/spec/subscription-credit-rate-limit-v1.md)，驗收案例在 [subscription-credit-rate-limit-v1.md](/Users/andrew/code-work/AndrewDemo.AgentRateLimit/spec/testcases/subscription-credit-rate-limit-v1.md)。
 
-## 下一個實作切片
+## Build And Test
 
-第一個 code slice 應只做最小可執行模型：
+```bash
+dotnet restore AndrewDemo.AgentRateLimit.slnx
+dotnet build AndrewDemo.AgentRateLimit.slnx --no-restore -m:1
+dotnet test AndrewDemo.AgentRateLimit.slnx --no-build -m:1
+dotnet run --project src/AndrewDemo.AgentRateLimit.Cli/AndrewDemo.AgentRateLimit.Cli.csproj --no-build
+```
 
-1. 定義 `ScenarioManifest`、`AgentWorkItem`、`AdmissionDecision`、`MetricSnapshot`。
-2. 建立 forward-only controllable clock。
-3. 實作 fixed-window quota + bounded queue policy。
-4. 用一個 burst scenario 證明 accepted / queued / rejected / executed / wait ticks 都可重播。
+## Implemented V1 Behavior
+
+- 正整數 credit validation。
+- 5h 與 7d rolling window。
+- window allowance 不足時使用 extra pool。
+- insufficient credits / subscription missing / disabled / user mismatch rejection。
+- idempotency replay 與 payload mismatch conflict。
+- preview usage 不改變帳務狀態。
+- 多 user 與多 subscription 隔離。
+- 同 subscription concurrent consume 不超扣。
+- restart 後 audit/status 可回溯。
+- extra pool top-up、manual correction 與 reconciliation report。

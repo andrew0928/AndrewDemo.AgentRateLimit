@@ -14,17 +14,19 @@
 - [x] 建立只描述外部可觀測行為的 `Subscription Credit Rate Limit V1` 規格。
 - [ ] review 並凍結第一版 scenario manifest contract。
 
-## Phase 1：Deterministic POC
+## Phase 1：V1 SQLite Implementation
 
-目標：最小可執行 harness。
+目標：用 .NET 10 + SQLite 實作 `Subscription Credit Rate Limit V1` 的第一版可執行行為。
 
-- [ ] 建立 `.NET` solution 與 `Abstract/Core/Simulation/Tests` project。
-- [ ] 實作 manual forward-only clock。
-- [ ] 實作 fixed-window quota ledger。
-- [ ] 實作 bounded queue + priority reservation。
-- [ ] 實作 provider stub。
-- [ ] 實作 scenario runner 與 JSON summary。
-- [ ] 將 `spec/testcases` 轉成 xUnit scenario tests。
+- [x] 建立 `.NET 10` solution 與 `Abstract/Core/Cli/Core.Tests` project。
+- [x] 實作 SQLite-backed subscription usage service。
+- [x] 實作整數 credit validation。
+- [x] 實作 5h / 7d rolling window。
+- [x] 實作 extra pool top-up、consume 與 manual correction。
+- [x] 實作 idempotency replay 與 conflict。
+- [x] 實作 audit trail 與 reconciliation report。
+- [x] 將 V1 testcases 轉成 xUnit 驗收測試。
+- [x] 建立 CLI smoke run。
 
 ## Phase 2：Policy And Metrics Expansion
 

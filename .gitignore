@@ -2,11 +2,11 @@
 .vscode/
 .idea/
 
-/bin/
-/obj/
-/TestResults/
+bin/
+obj/
+TestResults/
 /coverage/
-/artifacts/
+artifacts/
 
 *.user
 *.suo

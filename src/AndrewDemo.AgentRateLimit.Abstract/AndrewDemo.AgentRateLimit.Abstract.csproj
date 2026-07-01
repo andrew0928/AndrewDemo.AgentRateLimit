@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>AndrewDemo.AgentRateLimit.Abstract</AssemblyName>
+    <RootNamespace>AndrewDemo.AgentRateLimit.Abstract</RootNamespace>
+  </PropertyGroup>
+</Project>

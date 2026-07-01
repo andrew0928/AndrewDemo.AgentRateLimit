@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>AndrewDemo.AgentRateLimit.Cli</AssemblyName>
+    <RootNamespace>AndrewDemo.AgentRateLimit.Cli</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../AndrewDemo.AgentRateLimit.Abstract/AndrewDemo.AgentRateLimit.Abstract.csproj" />
+    <ProjectReference Include="../AndrewDemo.AgentRateLimit.Core/AndrewDemo.AgentRateLimit.Core.csproj" />
+  </ItemGroup>
+</Project>

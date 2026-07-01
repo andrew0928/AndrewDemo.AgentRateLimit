@@ -1,13 +1,18 @@
 # Tests
 
-此目錄目前尚未建立測試專案。實作開始後，測試應直接對齊 `spec/testcases`。
+此目錄保存對齊 `spec/testcases` 的 xUnit 驗收測試。
 
-## Planned Test Types
+## Current Test Project
 
-- Contract tests：驗證 manifest validation、decision model、metric model。
-- Scenario tests：驗證 burst、quota exhaustion、priority reservation、fairness、retry。
-- Replay tests：同一 scenario 連跑兩次，normalized timeline 必須一致。
-- CLI smoke tests：執行 sample scenario，檢查 JSON/CSV summary。
+- `AndrewDemo.AgentRateLimit.Core.Tests`
+
+## Covered Test Types
+
+- Contract tests：驗證 request validation、decision result、reason、status output。
+- Scenario tests：驗證 5h/7d rolling window、extra pool、idempotency、multi-user isolation。
+- Persistence tests：驗證 restart 後 status 與 audit trail 仍可查詢。
+- Concurrency tests：驗證同 subscription 同時 consume 不超扣。
+- Reconciliation tests：驗證 audit trail 可重建期間 credit 變化。
 
 ## Test Rules
 

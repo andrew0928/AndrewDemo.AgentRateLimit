@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AndrewDemo.AgentRateLimit.Abstract/AndrewDemo.AgentRateLimit.Abstract.csproj" />
+    <Project Path="src/AndrewDemo.AgentRateLimit.Cli/AndrewDemo.AgentRateLimit.Cli.csproj" />
+    <Project Path="src/AndrewDemo.AgentRateLimit.Core/AndrewDemo.AgentRateLimit.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AndrewDemo.AgentRateLimit.Core.Tests/AndrewDemo.AgentRateLimit.Core.Tests.csproj" />
+  </Folder>
+</Solution>
