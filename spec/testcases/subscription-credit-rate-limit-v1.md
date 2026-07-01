@@ -83,6 +83,7 @@
 - Given: `sub-a` 的 5h remaining 為 5
 - And: `sub-a` 的 7d remaining 為 500
 - And: `sub-a` 的 extra pool remaining 為 50
+- And: 本次 operation 已取得使用 extra pool 的授權
 - When: user `user-a` consume 20 credits
 - Then: decision result 為 `accepted`
 - And: credits covered by subscription window allowance 為 5
@@ -94,6 +95,7 @@
 - Given: `sub-a` 的 5h remaining 為 100
 - And: `sub-a` 的 7d remaining 為 8
 - And: `sub-a` 的 extra pool remaining 為 50
+- And: 本次 operation 已取得使用 extra pool 的授權
 - When: user `user-a` consume 20 credits
 - Then: decision result 為 `accepted`
 - And: credits covered by subscription window allowance 為 8
@@ -105,6 +107,7 @@
 - Given: `sub-a` 的 5h remaining 為 12
 - And: `sub-a` 的 7d remaining 為 7
 - And: `sub-a` 的 extra pool remaining 為 50
+- And: 本次 operation 已取得使用 extra pool 的授權
 - When: user `user-a` consume 20 credits
 - Then: decision result 為 `accepted`
 - And: credits covered by subscription window allowance 為 7
@@ -116,6 +119,7 @@
 - Given: `sub-a` 的 5h remaining 為 5
 - And: `sub-a` 的 7d remaining 為 8
 - And: `sub-a` 的 extra pool remaining 為 10
+- And: 本次 operation 已取得使用 extra pool 的授權
 - When: user `user-a` consume 20 credits
 - Then: decision result 為 `rejected`
 - And: rejection reason 為 `insufficient-credits`
@@ -123,31 +127,43 @@
 - And: 7d remaining 仍為 8
 - And: extra pool remaining 仍為 10
 
-### TC-WINDOW-006 5h rolling window 到期後釋放 5h remaining
+### TC-WINDOW-006 5h lazy window lease 到期後由下一次 admission 重開
 
-- Given: `sub-a` 在 `2026-07-01T00:00:00Z` accepted 30 credits
+- Given: `sub-a` 在 `2026-07-01T00:00:00Z` 通過 accepted admission 並開啟 5h window lease
 - And: 5h window limit 為 100
+- And: 5h window lease expires time 為 `2026-07-01T05:00:00Z`
+- And: `sub-a` 在該 lease 內 accepted consume 30 credits
 - When: 在 `2026-07-01T04:59:59Z` 查詢 usage status
 - Then: 5h window used credits 包含該 30 credits
-- When: 在 `2026-07-01T05:00:00Z` 查詢 usage status
-- Then: 5h window used credits 不再包含該 30 credits
+- When: 到達 `2026-07-01T05:00:00Z` 且沒有新的 admission / consume
+- Then: 系統不需要背景 reset 或寫入新的 window state
+- When: `sub-a` 在 `2026-07-01T05:10:00Z` 再次通過 accepted admission
+- Then: 新的 5h window lease 從 `2026-07-01T05:10:00Z` 開始
+- And: 新的 5h window lease expires time 為 `2026-07-01T10:10:00Z`
+- And: 新的 5h window used credits 在本次 admission 後仍為 0
 
-### TC-WINDOW-007 7d rolling window 到期後釋放 7d remaining
+### TC-WINDOW-007 7d lazy window lease 到期後由下一次 admission 重開
 
-- Given: `sub-a` 在 `2026-07-01T00:00:00Z` accepted 30 credits
+- Given: `sub-a` 在 `2026-07-01T00:00:00Z` 通過 accepted admission 並開啟 7d window lease
 - And: 7d window limit 為 1000
+- And: 7d window lease expires time 為 `2026-07-08T00:00:00Z`
+- And: `sub-a` 在該 lease 內 accepted consume 30 credits
 - When: 在 `2026-07-07T23:59:59Z` 查詢 usage status
 - Then: 7d window used credits 包含該 30 credits
-- When: 在 `2026-07-08T00:00:00Z` 查詢 usage status
-- Then: 7d window used credits 不再包含該 30 credits
+- When: 到達 `2026-07-08T00:00:00Z` 且沒有新的 admission / consume
+- Then: 系統不需要背景 reset 或寫入新的 window state
+- When: `sub-a` 在 `2026-07-08T08:00:00Z` 再次通過 accepted admission
+- Then: 新的 7d window lease 從 `2026-07-08T08:00:00Z` 開始
+- And: 新的 7d window lease expires time 為 `2026-07-15T08:00:00Z`
+- And: 新的 7d window used credits 在本次 admission 後仍為 0
 
 ## Extra Pool
 
-### TC-EXTRA-001 extra pool 不因 rolling window reset 自動恢復
+### TC-EXTRA-001 extra pool 不因 window lease 到期或重開自動恢復
 
 - Given: `sub-a` 的 extra pool remaining 原本為 50
-- And: user `user-a` 在 5h 額度不足時 accepted usage 並消耗 15 extra credits
-- When: 5h window 到期後查詢 usage status
+- And: user `user-a` 在 5h 額度不足時授權使用 extra pool，accepted usage 並消耗 15 extra credits
+- When: 5h window lease 到期後，下一次 admission 重開 5h window lease
 - Then: extra pool remaining 仍為 35
 
 ### TC-EXTRA-002 extra pool 剛好足夠時 accepted 並歸零
@@ -155,10 +171,23 @@
 - Given: `sub-a` 的 5h remaining 為 0
 - And: `sub-a` 的 7d remaining 為 0
 - And: `sub-a` 的 extra pool remaining 為 20
+- And: 本次 operation 已取得使用 extra pool 的授權
 - When: user `user-a` consume 20 credits
 - Then: decision result 為 `accepted`
 - And: credits covered by extra pool 為 20
 - And: extra pool remaining 變為 0
+
+### TC-EXTRA-004 extra pool 足夠但未授權時要求 UI 確認
+
+- Given: `sub-a` 的 5h remaining 為 0
+- And: `sub-a` 的 7d remaining 為 500
+- And: `sub-a` 的 extra pool remaining 為 50
+- And: 本次 operation 尚未取得使用 extra pool 的授權
+- When: user `user-a` request admission for 1 credit
+- Then: decision result 為 `rejected`
+- And: rejection reason 為 `extra-pool-authorization-required`
+- And: 不可消耗 extra pool
+- And: 不可建立 consume record
 
 ### TC-EXTRA-003 extra pool 調整必須出現在 audit trail
 
@@ -200,6 +229,7 @@
 
 - Given: `sub-a` 的 5h remaining 為 100
 - And: `sub-a` 的 7d remaining 為 500
+- And: 本次 operation 尚未取得使用 extra pool 的授權
 - When: usage request 的 credit amount mode 為 `minimum-available-balance`
 - And: minimum required credits 為 1
 - Then: decision result 為 `accepted`
@@ -210,15 +240,19 @@
 
 - Given: `sub-a` 的 5h remaining 為 100
 - And: `sub-a` 的 7d remaining 為 500
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: caller 先前沒有取得使用 extra pool 的授權
 - And: caller 已通過 minimum balance 判定並完成實際工作
 - When: usage settlement 的 actual credits 為 120
 - Then: decision result 為 `accepted`
 - And: credits covered by subscription window allowance 為 100
+- And: credits covered by extra pool 為 0
 - And: credits absorbed by system 為 20
+- And: extra pool remaining 仍為 1000
 - And: 5h remaining 變為 0
 - And: 7d remaining 變為 380
 - And: audit trail 必須忠實記錄 actual credits、covered credits 與 system absorbed credits
-- And: 系統吸收的 20 credits 不因本次 request 立即恢復，必須等 rolling window reset 規則釋放
+- And: 系統吸收的 20 credits 不因本次 request 立即恢復，必須等 active window lease 到期後由下一次 admission 重開
 
 ## Idempotency
 
@@ -301,7 +335,7 @@
 - Given: user `user-a` consume 20 credits 且 decision result 為 `accepted`
 - When: 服務使用同一 database persistence 重啟
 - And: 查詢 `sub-a` usage status
-- Then: 5h 與 7d window usage 仍包含該 20 credits，直到 rolling window 到期
+- Then: 5h 與 7d window usage 仍包含該 20 credits，直到 active window lease 到期
 - And: audit trail 仍可查到該 accepted usage
 
 ### TC-CONSISTENCY-003 重啟後 rejected usage 仍可回溯
@@ -356,9 +390,9 @@
 - And: response 包含 7d window limit、used、remaining
 - And: response 包含 extra pool remaining
 
-### TC-STATUS-002 usage status 顯示 next reset time
+### TC-STATUS-002 usage status 顯示 active lease next reset time
 
-- Given: `sub-a` 在 rolling window 內有 accepted usage
+- Given: `sub-a` 有 active 5h 與 7d window lease
 - When: 查詢 usage status
-- Then: response 包含 5h next reset time，若 5h used credits 大於 0
-- And: response 包含 7d next reset time，若 7d used credits 大於 0
+- Then: response 包含 5h next reset time，值為 active 5h lease expires time
+- And: response 包含 7d next reset time，值為 active 7d lease expires time

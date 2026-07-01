@@ -6,35 +6,38 @@
 
 ## Usage Decision Table
 
-| Case | Valid credits | Subscription valid | Idempotency state | 5h/7d allowance | Extra pool | Expected result | Covered by |
-|---|---|---|---|---|---|---|---|
-| 正整數且額度足夠 | yes | yes | new | enough | any | accepted, extra not used | TC-CREDIT-001, TC-WINDOW-001 |
-| 小數 credit | no | yes | new | any | any | invalid | TC-CREDIT-002 |
-| zero credit | no | yes | new | any | any | invalid | TC-CREDIT-003 |
-| negative credit | no | yes | new | any | any | invalid | TC-CREDIT-004 |
-| missing user id | no | unknown | new | any | any | invalid | TC-CREDIT-005 |
-| missing subscription id | no | unknown | new | any | any | invalid | TC-CREDIT-006 |
-| missing idempotency key | no | yes | missing | any | any | invalid | TC-CREDIT-007 |
-| 5h 不足但 extra 足夠 | yes | yes | new | 5h short | enough | accepted, extra used | TC-WINDOW-002 |
-| 7d 不足但 extra 足夠 | yes | yes | new | 7d short | enough | accepted, extra used | TC-WINDOW-003 |
-| 5h/7d 都不足但 extra 足夠 | yes | yes | new | both short | enough | accepted, extra used | TC-WINDOW-004 |
-| subscription allowance + extra 仍不足 | yes | yes | new | short | not enough | rejected | TC-WINDOW-005 |
-| 相同 idempotency key 與相同 payload | yes | yes | same payload | any | any | original decision | TC-IDEMP-001 |
-| 相同 idempotency key 但不同 payload | yes | yes | different payload | any | any | conflict | TC-IDEMP-002 |
-| user/subscription 不匹配 | yes | no | new | any | any | rejected | TC-ISOLATION-003 |
-| subscription disabled | yes | disabled | new | any | any | rejected | TC-ISOLATION-005 |
-| subscription not found | yes | missing | new | any | any | rejected | TC-ISOLATION-004 |
+| Case | Valid credits | Subscription valid | Idempotency state | 5h/7d allowance | Extra pool | Extra authorization | Expected result | Covered by |
+|---|---|---|---|---|---|---|---|---|
+| 正整數且額度足夠 | yes | yes | new | enough | any | any | accepted, extra not used | TC-CREDIT-001, TC-WINDOW-001 |
+| 小數 credit | no | yes | new | any | any | any | invalid | TC-CREDIT-002 |
+| zero credit | no | yes | new | any | any | any | invalid | TC-CREDIT-003 |
+| negative credit | no | yes | new | any | any | any | invalid | TC-CREDIT-004 |
+| missing user id | no | unknown | new | any | any | any | invalid | TC-CREDIT-005 |
+| missing subscription id | no | unknown | new | any | any | any | invalid | TC-CREDIT-006 |
+| missing idempotency key | no | yes | missing | any | any | any | invalid | TC-CREDIT-007 |
+| 5h 不足但 extra 足夠且已授權 | yes | yes | new | 5h short | enough | authorized | accepted, extra used | TC-WINDOW-002 |
+| 7d 不足但 extra 足夠且已授權 | yes | yes | new | 7d short | enough | authorized | accepted, extra used | TC-WINDOW-003 |
+| 5h/7d 都不足但 extra 足夠且已授權 | yes | yes | new | both short | enough | authorized | accepted, extra used | TC-WINDOW-004 |
+| allowance 不足、extra 足夠但未授權 | yes | yes | new | short | enough | not authorized | rejected, extra-pool-authorization-required | TC-EXTRA-004 |
+| subscription allowance + extra 仍不足 | yes | yes | new | short | not enough | authorized | rejected | TC-WINDOW-005 |
+| 相同 idempotency key 與相同 payload | yes | yes | same payload | any | any | any | original decision | TC-IDEMP-001 |
+| 相同 idempotency key 但不同 payload | yes | yes | different payload | any | any | any | conflict | TC-IDEMP-002 |
+| user/subscription 不匹配 | yes | no | new | any | any | any | rejected | TC-ISOLATION-003 |
+| subscription disabled | yes | disabled | new | any | any | any | rejected | TC-ISOLATION-005 |
+| subscription not found | yes | missing | new | any | any | any | rejected | TC-ISOLATION-004 |
 
 ## Window And Time Table
 
-| Case | Accepted usage age at decision time | Expected window behavior | Covered by |
+| Case | Active lease state at decision time | Expected window behavior | Covered by |
 |---|---|---|---|
-| usage younger than 5h | `age < 5h` | included in 5h window | TC-WINDOW-006 |
-| usage exactly 5h old | `age = 5h` | excluded from 5h window | TC-WINDOW-006 |
-| usage younger than 7d | `age < 7d` | included in 7d window | TC-WINDOW-007 |
-| usage exactly 7d old | `age = 7d` | excluded from 7d window | TC-WINDOW-007 |
+| active 5h lease not expired | `T < 5h expires time` | consume usage is applied to current 5h lease | TC-WINDOW-006 |
+| active 5h lease expired and no request arrives | `T >= 5h expires time`, no admission / consume | no background reset or new lease is required | TC-WINDOW-006 |
+| active 5h lease expired and next admission arrives | `T >= 5h expires time`, admission accepted | new 5h lease opens from admission time | TC-WINDOW-006 |
+| active 7d lease not expired | `T < 7d expires time` | consume usage is applied to current 7d lease | TC-WINDOW-007 |
+| active 7d lease expired and no request arrives | `T >= 7d expires time`, no admission / consume | no background reset or new lease is required | TC-WINDOW-007 |
+| active 7d lease expired and next admission arrives | `T >= 7d expires time`, admission accepted | new 7d lease opens from admission time | TC-WINDOW-007 |
 | rejected usage | any | excluded from both windows | TC-WINDOW-005, TC-CONSISTENCY-003 |
-| preview usage | any | excluded from both windows | TC-PREVIEW-001, TC-PREVIEW-002 |
+| preview / admission usage | any | excluded from window usage, but may open a new active lease | TC-PREVIEW-001, TC-PREVIEW-002, TC-SETTLE-001 |
 
 ## Accounting Safety Table
 

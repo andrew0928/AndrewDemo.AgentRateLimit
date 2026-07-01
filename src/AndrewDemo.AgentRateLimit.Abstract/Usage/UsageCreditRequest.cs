@@ -7,6 +7,7 @@ public sealed record UsageCreditRequest(
     SubscriptionId? SubscriptionId,
     RequestedCreditsInput RequestedCredits,
     UsageCreditAmountMode CreditAmountMode,
+    UsageExtraPoolAuthorization ExtraPoolAuthorization,
     IdempotencyKey? IdempotencyKey,
     CorrelationId CorrelationId,
     string Source);

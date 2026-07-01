@@ -1,8 +1,10 @@
 # 決策：V1 規格只凍結外部可觀測的 subscription credit rate limit 行為
 
 - 決策時間：2026-07-01
-- 狀態：accepted
+- 狀態：superseded
 - 範圍：`Subscription Credit Rate Limit V1` 規格
+
+> Superseded by `2026-07-01-subscription-credit-lazy-quota-window-lease.md` for the window semantics. The observable-behavior-first boundary still applies, but the 5h / 7d model is no longer rolling window.
 
 ## Context
 

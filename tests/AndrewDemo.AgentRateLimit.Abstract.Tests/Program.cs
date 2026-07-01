@@ -34,6 +34,7 @@ internal static class UsageDecisionDeveloperExperienceTests
             SubscriptionId: new SubscriptionId("sub-a"),
             RequestedCredits: RequestedCreditsInput.FromInt32(1),
             CreditAmountMode: UsageCreditAmountMode.MinimumAvailableBalance,
+            ExtraPoolAuthorization: UsageExtraPoolAuthorization.NotAuthorized,
             IdempotencyKey: new IdempotencyKey("tc-settle-002"),
             CorrelationId: new CorrelationId("corr-tc-settle-002-probe"),
             Source: "abstract-dx-test");

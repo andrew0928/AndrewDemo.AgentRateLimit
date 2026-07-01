@@ -6,7 +6,7 @@
 
 ## 1. 目的
 
-本規格定義一個基於 credit 的 subscription usage control 行為。系統以整數 credit 作為唯一用量單位，對每個 subscription 同時套用 5 小時與 7 天用量窗口；當窗口額度不足時，可依規則使用額外的 extra pool。
+本規格定義一個基於 credit 的 subscription usage control 行為。系統以整數 credit 作為唯一用量單位，對每個 subscription 同時套用 5 小時與 7 天 lazy quota window lease；當窗口額度不足時，只有在 caller / user 明確授權後，才可使用額外的 extra pool。
 
 優先順序：
 
@@ -22,9 +22,9 @@
 - `credit`：唯一計費與限流單位，必須為整數。
 - `usage request`：要求消耗一筆 credit 的外部請求。
 - `usage decision`：對 usage request 的結果，只有 accepted、rejected、conflict 或 invalid。
-- `5h window`：在決策時間往前回看 5 小時的 rolling window。
-- `7d window`：在決策時間往前回看 7 天的 rolling window。
-- `extra pool`：subscription 額外可用 credit 餘額；當 5h 或 7d window 額度不足時，accepted usage 可從 extra pool 補足。
+- `5h window`：5 小時 lazy quota window lease。若 subscription 長時間沒有使用，系統不需背景重置；下一次 accepted admission 或 consume 進入 quota 判定時，若既有 5h lease 已過期，才從該決策時間開啟新的 5h lease。
+- `7d window`：7 天 lazy quota window lease。行為同 5h window，但 lease duration 為 7 天。
+- `extra pool`：subscription 額外可用 credit 餘額；當 5h 或 7d window 額度不足時，accepted usage 只有在本次 operation 已取得 explicit authorization 後，才可從 extra pool 補足。
 - `idempotency key`：外部呼叫者提供的唯一鍵，用來避免同一筆 usage request 被重複扣款。
 - `audit record`：可查詢、可匯出、可用於回溯 usage decision 與 credit 變動的紀錄。
 
@@ -39,6 +39,7 @@
 - user id
 - subscription id
 - requested credits
+- extra pool authorization：本次 operation 是否已明確同意使用 extra pool
 - idempotency key
 - request correlation id
 
@@ -60,7 +61,7 @@
 
 Preview 的結果格式應與 consume usage decision 一致，但不得改變任何 usage total、window usage、extra pool balance 或 audit reconciliation result。
 
-Preview 可以留下查詢紀錄，但不得被視為帳務扣款紀錄。
+Preview / admission 可以在既有 lease 已過期時建立新的 active lazy quota window lease；這代表「使用週期開始」，但不得被視為帳務扣款紀錄。
 
 ### 3.3 Query Usage Status
 
@@ -69,11 +70,11 @@ Preview 可以留下查詢紀錄，但不得被視為帳務扣款紀錄。
 - 5h window limit
 - 5h window used credits
 - 5h window remaining credits
-- 5h next reset time，若可由目前用量推算
+- 5h next reset time，若目前存在 active 5h window lease
 - 7d window limit
 - 7d window used credits
 - 7d window remaining credits
-- 7d next reset time，若可由目前用量推算
+- 7d next reset time，若目前存在 active 7d window lease
 - extra pool remaining credits
 
 ### 3.4 Query Audit Trail
@@ -111,10 +112,13 @@ Preview 可以留下查詢紀錄，但不得被視為帳務扣款紀錄。
 
 對決策時間 `T`：
 
-- 5h window 計入 `T - 5h < usage time <= T` 的 accepted usage credits。
-- 7d window 計入 `T - 7d < usage time <= T` 的 accepted usage credits。
-- rejected、invalid、conflict、preview 不計入 window usage。
-- accepted usage 不論由 subscription allowance 或 extra pool 覆蓋，都必須計入 5h 與 7d window usage。
+- 若 5h active lease 不存在，或 `T >= 5h lease expires time`，本次 admission / consume 必須從 `T` 開啟新的 5h lease，expires time 為 `T + 5h`。
+- 若 7d active lease 不存在，或 `T >= 7d lease expires time`，本次 admission / consume 必須從 `T` 開啟新的 7d lease，expires time 為 `T + 7d`。
+- active lease interval 為 `[opened time, expires time)`；到期後不需要背景 job 立刻重置，下一次 admission / consume 才 lazy 開啟新 lease。
+- accepted consume 的 actual credits 必須計入當時 active 5h 與 7d lease 的 usage。
+- rejected、invalid、conflict 不計入 window usage。
+- preview / admission 不計入 window usage，但可建立新的 active lease。
+- accepted usage 不論由 subscription allowance、extra pool 或 system absorbed 覆蓋，都必須計入 5h 與 7d window usage。
 
 ### 4.3 Accepted 條件
 
@@ -123,16 +127,18 @@ Preview 可以留下查詢紀錄，但不得被視為帳務扣款紀錄。
 - requested credits 是正整數。
 - subscription 存在且屬於指定 user。
 - idempotency key 沒有衝突。
-- `subscription allowance 可覆蓋 credits + extra pool 可覆蓋 credits >= requested credits`。
+- subscription allowance 可覆蓋 requested credits；或 subscription allowance 不足但本次 operation 已授權使用 extra pool，且 `subscription allowance 可覆蓋 credits + extra pool 可覆蓋 credits >= requested credits`。
 
 其中 subscription allowance 可覆蓋 credits 由當下 5h remaining 與 7d remaining 共同限制，以較小者為準。
 
 ### 4.4 Extra Pool 使用
 
 - 當 5h 與 7d remaining 都足以覆蓋 requested credits 時，不可消耗 extra pool。
-- 當任一 window remaining 不足時，accepted usage 的不足部分必須消耗 extra pool。
+- 當任一 window remaining 不足、extra pool 足以補足、且本次 operation 已明確授權使用 extra pool 時，accepted usage 的不足部分必須消耗 extra pool。
+- 當任一 window remaining 不足、extra pool 足以補足、但本次 operation 尚未授權使用 extra pool 時，不可開始 consume；decision 必須能讓 UI 提示使用者選擇使用 extra pool 或等待 window reset。
+- unknown final credits 的 settlement overrun 不可靜默消耗 extra pool。若事前 admission 沒有發現不足、也沒有取得 extra pool authorization，actual credits 超過 subscription allowance 的部分必須記為 system absorbed。
 - extra pool 不可變成負數。
-- extra pool 不因 5h 或 7d window reset 自動恢復。
+- extra pool 不因 5h 或 7d window lease 到期或重新開啟而自動恢復。
 - extra pool 的增加、消耗與調整都必須可在 audit trail 與 reconciliation report 中看見。
 
 ### 4.5 Rejected 條件
@@ -140,6 +146,7 @@ Preview 可以留下查詢紀錄，但不得被視為帳務扣款紀錄。
 一筆 usage request 必須被 rejected，若：
 
 - requested credits 超過當下 subscription allowance 與 extra pool 可合計覆蓋的數量。
+- subscription allowance 不足、extra pool 足以補足、但本次 operation 尚未取得 extra pool authorization。
 - subscription 不存在或不屬於指定 user。
 - subscription 已停用或不可用。
 
@@ -171,7 +178,8 @@ Rejected request：
 本節只描述外部結果，不指定內部實作方式。
 
 - 同一 subscription 的多筆同時 usage request，其可觀測結果必須等價於某個明確的先後順序。
-- 不論同時請求數量多少，accepted credits 不可超過當下可由 subscription allowance 與 extra pool 合計覆蓋的數量。
+- 不論同時請求數量多少，admission 階段已知 requested credits 的 accepted total 不可超過當下可由 subscription allowance 與已授權 extra pool 合計覆蓋的數量。
+- 若 final actual credits 在工作完成後才知道，且成本已經發生，settlement 必須忠實 accepted 並記錄 system absorbed overrun。
 - 已回傳 accepted 的 usage decision，在服務重啟後仍必須出現在 usage status、audit trail 與 reconciliation report 中。
 - 已回傳 rejected、invalid 或 conflict 的 decision，在服務重啟後仍必須可於 audit trail 查詢。
 - 若帳務需要修正，修正必須以新的 audit record 表達；原始紀錄不可從外部查詢結果中消失。
@@ -190,6 +198,7 @@ Rejected request：
 第一版至少支援：
 
 - `insufficient-credits`
+- `extra-pool-authorization-required`
 - `subscription-not-found`
 - `subscription-disabled`
 - `user-subscription-mismatch`
@@ -228,4 +237,5 @@ Rejected request：
 - 自動 subscription plan upgrade/downgrade。
 - 跨 database、跨 region 或 multi-writer replication。
 - 非整數 credit。
-- calendar bucket window；第一版只採 rolling 5h 與 rolling 7d。
+- calendar bucket window。
+- 每筆 usage 依自身時間逐筆滑出窗口的 rolling window；第一版只採 lazy fixed-duration quota window lease。

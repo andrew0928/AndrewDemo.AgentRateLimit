@@ -12,6 +12,12 @@ public enum UsageCreditAmountMode
     MinimumAvailableBalance
 }
 
+public enum UsageExtraPoolAuthorization
+{
+    NotAuthorized,
+    Authorized
+}
+
 public enum UsageDecisionResult
 {
     Accepted,
@@ -23,6 +29,7 @@ public enum UsageDecisionResult
 public enum UsageRejectionReason
 {
     InsufficientCredits,
+    ExtraPoolAuthorizationRequired,
     SubscriptionNotFound,
     SubscriptionDisabled,
     UserSubscriptionMismatch
