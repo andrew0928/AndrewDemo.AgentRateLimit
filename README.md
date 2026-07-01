@@ -2,7 +2,7 @@
 
 `AndrewDemo.AgentRateLimit` 是用來設計與驗證 agent rate-limit / quota / admission-control 行為的 harness repo。
 
-目前狀態是 repo 初始化與第一版外部行為規格設計。這一版先固定 subscription credit rate limit 的可觀測行為與驗收案例，尚未開始建立 production code。
+目前狀態是 repo 初始化、第一版外部行為規格設計，以及 subscription credit rate limit 的第一個 `.Core` implementation slice。這一版先固定 subscription credit rate limit 的可觀測行為與驗收案例，並用 SQLite-backed Core 與 xUnit 覆蓋 End-to-End run outcome。
 
 ## 設計目標
 
@@ -33,13 +33,13 @@
 └── tests/
 ```
 
-未來 code layout 會採：
+目前 code layout 採：
 
 - `AndrewDemo.AgentRateLimit.Abstract`：scenario、policy、decision、metric contract。
-- `AndrewDemo.AgentRateLimit.Core`：deterministic harness runner、admission controller、quota ledger、queue scheduler、metric recorder。
+- `AndrewDemo.AgentRateLimit.Core`：subscription credit usage service、DI builder、SQLite-backed admission / consume state。
 - `AndrewDemo.AgentRateLimit.Simulation`：traffic profile、可控時間、provider stub、golden scenario。
 - `AndrewDemo.AgentRateLimit.Cli`：本機執行 scenario 與輸出 CSV/JSON summary。
-- `AndrewDemo.AgentRateLimit.Tests`：contract tests、scenario tests、metric assertions。
+- `AndrewDemo.AgentRateLimit.Core.Tests`：subscription credit End-to-End run outcome xUnit tests。
 
 ## 驗收梯
 

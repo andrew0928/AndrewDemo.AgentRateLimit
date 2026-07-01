@@ -1,5 +1,8 @@
 using AndrewDemo.AgentRateLimit.Abstract.Credits;
 using AndrewDemo.AgentRateLimit.Abstract.Usage;
+using AndrewDemo.AgentRateLimit.Core.DependencyInjection;
+using AndrewDemo.AgentRateLimit.Core.Storage;
+using Microsoft.Extensions.DependencyInjection;
 
 await UsageDecisionDeveloperExperienceTests
     .TcSettle002_BalanceProbeThenActualOverage_RecordsSystemAbsorption();
@@ -21,13 +24,23 @@ internal static class UsageDecisionDeveloperExperienceTests
         //   available-balance threshold, not the final expected cost.
         // - final actual credits are sent later through ConsumeAsync as ExactCredits.
 
-        // TODO: Replace this fake with AndrewDemo.AgentRateLimit.Core once the Core/storage slice exists.
-        // Expected future setup:
-        // - create a controllable clock fixed at 2026-07-01T00:00:00Z
-        // - seed user-a/sub-a as active
-        // - seed 5h limit 100, 7d limit 500, extra pool 0
-        // - call the real ISubscriptionCreditUsageService implementation
-        ISubscriptionCreditUsageService usage = new ContractOnlyUsageService();
+        await using var fixture = await UsageServiceFixture.CreateAsync(
+            DateTimeOffset.Parse("2026-07-01T00:00:00Z"));
+        await fixture.Store.SeedAccountAsync(new SubscriptionCreditAccountSeed(
+            SubscriptionId: "sub-a",
+            UserId: "user-a",
+            Status: "active",
+            FiveHourLimit: 100,
+            SevenDayLimit: 500,
+            FiveHourOpenedUtc: DateTimeOffset.Parse("2026-07-01T00:00:00Z"),
+            FiveHourExpiresUtc: DateTimeOffset.Parse("2026-07-01T05:00:00Z"),
+            FiveHourUsedCredits: 0,
+            SevenDayOpenedUtc: DateTimeOffset.Parse("2026-07-01T00:00:00Z"),
+            SevenDayExpiresUtc: DateTimeOffset.Parse("2026-07-08T00:00:00Z"),
+            SevenDayUsedCredits: 0,
+            ExtraPoolRemainingCredits: 0));
+
+        ISubscriptionCreditUsageService usage = fixture.Usage;
 
         var balanceProbe = new UsageCreditRequest(
             UserId: new UserId("user-a"),
@@ -75,87 +88,78 @@ internal static class UsageDecisionDeveloperExperienceTests
     }
 }
 
-internal sealed class ContractOnlyUsageService : ISubscriptionCreditUsageService
+internal sealed class UsageServiceFixture : IAsyncDisposable
 {
-    private static readonly DateTimeOffset DecisionTime =
-        DateTimeOffset.Parse("2026-07-01T00:00:00Z");
-
-    public ValueTask<UsageCreditDecision> DecideAsync(
-        UsageCreditRequest request,
-        CancellationToken cancellationToken)
+    private UsageServiceFixture(
+        string databasePath,
+        ServiceProvider serviceProvider,
+        SubscriptionCreditSqliteStore store,
+        ISubscriptionCreditUsageService usage)
     {
-        return ValueTask.FromResult(CreateDecision(UsageDecisionMode.DecideOnly, auditReference: null));
+        DatabasePath = databasePath;
+        ServiceProvider = serviceProvider;
+        Store = store;
+        Usage = usage;
     }
 
-    public ValueTask<UsageCreditDecision> ConsumeAsync(
-        UsageCreditRequest request,
-        CancellationToken cancellationToken)
+    public string DatabasePath { get; }
+
+    public ServiceProvider ServiceProvider { get; }
+
+    public SubscriptionCreditSqliteStore Store { get; }
+
+    public ISubscriptionCreditUsageService Usage { get; }
+
+    public static async ValueTask<UsageServiceFixture> CreateAsync(DateTimeOffset utcNow)
     {
-        return ValueTask.FromResult(CreateSettlementDecision(
-            new AuditReference("audit-tc-settle-002")));
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            "andrewdemo-agent-rate-limit-abstract-" + Guid.NewGuid().ToString("N") + ".db");
+
+        var services = new ServiceCollection();
+        services.AddSubscriptionCreditUsage(builder => builder
+            .UseSqlite("Data Source=" + databasePath)
+            .UseTimeProvider(new FixedTimeProvider(utcNow)));
+
+        var serviceProvider = services.BuildServiceProvider();
+        var store = serviceProvider.GetRequiredService<SubscriptionCreditSqliteStore>();
+        await store.InitializeAsync();
+
+        return new UsageServiceFixture(
+            databasePath,
+            serviceProvider,
+            store,
+            serviceProvider.GetRequiredService<ISubscriptionCreditUsageService>());
     }
 
-    private static UsageCreditDecision CreateDecision(
-        UsageDecisionMode mode,
-        AuditReference? auditReference)
+    public async ValueTask DisposeAsync()
     {
-        return new UsageCreditDecision(
-            Mode: mode,
-            CreditAmountMode: UsageCreditAmountMode.MinimumAvailableBalance,
-            Result: UsageDecisionResult.Accepted,
-            RequestedCredits: new CreditAmount(1),
-            CreditsCoveredBySubscriptionAllowance: CreditAmount.Zero,
-            CreditsCoveredByExtraPool: CreditAmount.Zero,
-            CreditsAbsorbedBySystem: CreditAmount.Zero,
-            FiveHourWindowAfterDecision: new UsageWindowBalance(
-                Kind: UsageWindowKind.FiveHours,
-                Limit: new CreditAmount(100),
-                Used: CreditAmount.Zero,
-                Remaining: new CreditAmount(100),
-                NextResetTimeUtc: null),
-            SevenDayWindowAfterDecision: new UsageWindowBalance(
-                Kind: UsageWindowKind.SevenDays,
-                Limit: new CreditAmount(500),
-                Used: CreditAmount.Zero,
-                Remaining: new CreditAmount(500),
-                NextResetTimeUtc: null),
-            ExtraPoolRemainingAfterDecision: CreditAmount.Zero,
-            RejectionReason: null,
-            InvalidReason: null,
-            ConflictReason: null,
-            AuditReference: auditReference,
-            DecisionTimeUtc: DecisionTime);
+        await ServiceProvider.DisposeAsync();
+
+        try
+        {
+            if (File.Exists(DatabasePath))
+            {
+                File.Delete(DatabasePath);
+            }
+        }
+        catch
+        {
+            // Cleanup failure should not mask the developer-experience assertion.
+        }
+    }
+}
+
+internal sealed class FixedTimeProvider : TimeProvider
+{
+    private readonly DateTimeOffset _utcNow;
+
+    public FixedTimeProvider(DateTimeOffset utcNow)
+    {
+        _utcNow = utcNow;
     }
 
-    private static UsageCreditDecision CreateSettlementDecision(AuditReference auditReference)
-    {
-        return new UsageCreditDecision(
-            Mode: UsageDecisionMode.Consume,
-            CreditAmountMode: UsageCreditAmountMode.ExactCredits,
-            Result: UsageDecisionResult.Accepted,
-            RequestedCredits: new CreditAmount(120),
-            CreditsCoveredBySubscriptionAllowance: new CreditAmount(100),
-            CreditsCoveredByExtraPool: CreditAmount.Zero,
-            CreditsAbsorbedBySystem: new CreditAmount(20),
-            FiveHourWindowAfterDecision: new UsageWindowBalance(
-                Kind: UsageWindowKind.FiveHours,
-                Limit: new CreditAmount(100),
-                Used: new CreditAmount(120),
-                Remaining: CreditAmount.Zero,
-                NextResetTimeUtc: null),
-            SevenDayWindowAfterDecision: new UsageWindowBalance(
-                Kind: UsageWindowKind.SevenDays,
-                Limit: new CreditAmount(500),
-                Used: new CreditAmount(120),
-                Remaining: new CreditAmount(380),
-                NextResetTimeUtc: null),
-            ExtraPoolRemainingAfterDecision: CreditAmount.Zero,
-            RejectionReason: null,
-            InvalidReason: null,
-            ConflictReason: null,
-            AuditReference: auditReference,
-            DecisionTimeUtc: DecisionTime);
-    }
+    public override DateTimeOffset GetUtcNow() => _utcNow;
 }
 
 internal static class Assert

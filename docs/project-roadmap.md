@@ -18,13 +18,15 @@
 
 目標：最小可執行 harness。
 
-- [ ] 建立 `.NET` solution 與 `Abstract/Core/Simulation/Tests` project。
+- [x] 建立 `.NET` solution 與 `Abstract/Core/Tests` project for subscription credit slice。
+- [ ] 建立 `Simulation` project for general harness POC。
 - [ ] 實作 manual forward-only clock。
 - [ ] 實作 fixed-window quota ledger。
 - [ ] 實作 bounded queue + priority reservation。
 - [ ] 實作 provider stub。
 - [ ] 實作 scenario runner 與 JSON summary。
-- [ ] 將 `spec/testcases` 轉成 xUnit scenario tests。
+- [x] 將 subscription credit End-to-End run outcome 轉成 xUnit tests。
+- [ ] 將 general harness `spec/testcases` 轉成 xUnit scenario tests。
 
 ## Phase 2：Policy And Metrics Expansion
 

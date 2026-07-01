@@ -1,6 +1,6 @@
 # Source Layout
 
-此目錄目前尚未建立 production code。第一個 implementation phase 應採以下分層。
+此目錄目前已有 `Abstract` 與 subscription credit rate limit 的第一個 `Core` implementation slice。後續 general harness implementation 仍應採以下分層。
 
 ## Planned Projects
 
@@ -11,6 +11,12 @@ src/
 ├── AndrewDemo.AgentRateLimit.Simulation/
 └── AndrewDemo.AgentRateLimit.Cli/
 ```
+
+目前 `AndrewDemo.AgentRateLimit.Core` 已包含：
+
+- `ISubscriptionCreditUsageService` 的 Microsoft DI registration builder。
+- SQLite-backed `DecideAsync` / `ConsumeAsync` implementation。
+- subscription account、consume record、extra pool record 的最小 schema。
 
 ## Boundary Rules
 
