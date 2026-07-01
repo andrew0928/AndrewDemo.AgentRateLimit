@@ -58,6 +58,7 @@ src/AndrewDemo.AgentRateLimit.Abstract/
     ├── UsageCreditRequest
     ├── UsageCreditDecision
     ├── UsageDecisionMode
+    ├── UsageCreditAmountMode
     ├── UsageDecisionResult
     ├── UsageRejectionReason
     ├── UsageInvalidReason
@@ -88,10 +89,59 @@ public interface ISubscriptionCreditUsageService
 
 Contract rules：
 
-- `DecideAsync` 是 V1 `Preview Usage` 在 `.Abstract` 的名稱。它必須回傳若現在 consume 會得到的 decision shape，但不得建立扣款、window usage、extra pool consumption 或 reconciliation effect。
+- `DecideAsync` 是 V1 `Preview Usage` 與 admission probe 在 `.Abstract` 的名稱。它不得建立扣款、window usage、extra pool consumption 或 reconciliation effect。
+- 若 caller 尚無法知道最終 credits，`DecideAsync` 不應把 `requested credits = 0` 當未知。0 仍是 invalid；應使用 `UsageCreditAmountMode.MinimumAvailableBalance` 與正整數 minimum threshold，例如 1。
 - `ConsumeAsync` 是唯一會消費 credit 的正常服務處理入口。若 result 是 `Accepted`，它必須使 usage evidence 與 extra pool consumption 可被 persistence 層回溯。
+- 若 `ConsumeAsync` 發生在實際成本已產生之後，即使 actual credits 超過可用 subscription allowance，也必須忠實記錄 actual credits，並以 `CreditsAbsorbedBySystem` 表示系統吸收的溢出額度。
 - `ConsumeAsync` 對 `Rejected`、`Invalid`、`Conflict` 不可改變 usage total 或 extra pool balance，但 implementation 仍應保存足夠 evidence 供 audit/recalculation 使用。
 - decision time 由 runtime 控制，不由 external request 指定；測試仍必須能以 controllable time 驗證 rolling window。
+
+### Unknown Final Credits Usage Case
+
+當 caller 在執行前無法知道最終 credits，只能先確認 subscription 還有可用餘額時，正確用法是把 `DecideAsync` 當成 admission probe。`requested credits = 0` 不代表未知，它仍然是不合法 credit；probe 應使用正整數門檻，例如 1，並用 `UsageCreditAmountMode.MinimumAvailableBalance` 表達這不是最終成本。
+
+```csharp
+ISubscriptionCreditUsageService usage = ResolveUsageService();
+
+var admissionProbe = new UsageCreditRequest(
+    UserId: new UserId("user-a"),
+    SubscriptionId: new SubscriptionId("sub-a"),
+    RequestedCredits: RequestedCreditsInput.FromInt32(1),
+    CreditAmountMode: UsageCreditAmountMode.MinimumAvailableBalance,
+    IdempotencyKey: new IdempotencyKey("agent-run-2026-07-01-001"),
+    CorrelationId: new CorrelationId("corr-agent-run-probe"),
+    Source: "agent-runtime");
+
+var admission = await usage.DecideAsync(admissionProbe, cancellationToken);
+
+// Intention:
+// - admission checks whether the subscription has at least 1 usable credit.
+// - admission does not consume window allowance.
+// - admission does not consume extra pool.
+// - admission does not create a billing audit reference.
+// - if admission is not accepted, the caller should not start the costly work.
+
+// Costly agent work happens here.
+// The caller may only know the actual credits after tool calls, model calls,
+// retries, or post-processing have completed.
+
+var settlement = admissionProbe with
+{
+    RequestedCredits = RequestedCreditsInput.FromInt32(120),
+    CreditAmountMode = UsageCreditAmountMode.ExactCredits,
+    CorrelationId = new CorrelationId("corr-agent-run-settlement")
+};
+
+var consumed = await usage.ConsumeAsync(settlement, cancellationToken);
+
+// Intention:
+// - ConsumeAsync records the actual 120 credits because the cost already happened.
+// - If only 100 credits are available from subscription allowance, the decision
+//   should report 100 covered credits and 20 system-absorbed credits.
+// - The system-absorbed credits are still part of the immutable usage evidence.
+// - The subscription should not receive those absorbed credits back immediately;
+//   recovery follows the normal rolling-window reset behavior.
+```
 
 ## 5. Core Contract Models
 
@@ -133,6 +183,7 @@ public sealed record UsageCreditRequest(
     UserId? UserId,
     SubscriptionId? SubscriptionId,
     RequestedCreditsInput RequestedCredits,
+    UsageCreditAmountMode CreditAmountMode,
     IdempotencyKey? IdempotencyKey,
     CorrelationId CorrelationId,
     string Source);
@@ -145,10 +196,12 @@ public sealed record UsageCreditRequest(
 ```csharp
 public sealed record UsageCreditDecision(
     UsageDecisionMode Mode,
+    UsageCreditAmountMode CreditAmountMode,
     UsageDecisionResult Result,
     CreditAmount? RequestedCredits,
     CreditAmount CreditsCoveredBySubscriptionAllowance,
     CreditAmount CreditsCoveredByExtraPool,
+    CreditAmount CreditsAbsorbedBySystem,
     UsageWindowBalance FiveHourWindowAfterDecision,
     UsageWindowBalance SevenDayWindowAfterDecision,
     CreditAmount ExtraPoolRemainingAfterDecision,
@@ -162,7 +215,9 @@ public sealed record UsageCreditDecision(
 Notes：
 
 - `RequestedCredits` 為 nullable，是為了處理 `credits-not-integer` 這類 invalid request；不可把 `1.5` 包裝成正式 credit 數字。
-- `CreditsCoveredBySubscriptionAllowance` 與 `CreditsCoveredByExtraPool` 在 non-accepted decision 中應為 0。
+- `CreditAmountMode.ExactCredits` 表示 `RequestedCredits` 是本次要結算的實際 credits。
+- `CreditAmountMode.MinimumAvailableBalance` 表示 `RequestedCredits` 是 admission probe 的最低可用額度門檻，不是最終成本。
+- `CreditsCoveredBySubscriptionAllowance`、`CreditsCoveredByExtraPool` 與 `CreditsAbsorbedBySystem` 在 non-accepted decision 中應為 0。
 - `AuditReference` 對 `ConsumeAsync` 的 accepted/rejected/invalid/conflict 應存在；`DecideAsync` 不應產生帳務 audit reference。
 - `Mode` 必須能區分 `DecideOnly` 與 `Consume`，避免 preview/decide 結果被誤視為已扣款結果。
 
@@ -199,6 +254,10 @@ UsageDecisionMode
 - DecideOnly -> "decide-only"
 - Consume -> "consume"
 
+UsageCreditAmountMode
+- ExactCredits -> "exact-credits"
+- MinimumAvailableBalance -> "minimum-available-balance"
+
 UsageDecisionResult
 - Accepted -> "accepted"
 - Rejected -> "rejected"
@@ -233,6 +292,7 @@ Serialization mapping 可以由 Core 或 Host adapter 實作，但 enum name 與
 - 每個 subscription 在任一 decision time 的 5h used/remaining。
 - 每個 subscription 在任一 decision time 的 7d used/remaining。
 - extra pool beginning balance、added、consumed、adjusted、ending balance。
+- system absorbed credits。
 - accepted/rejected/invalid/conflict 的 request count 與 credit total。
 - 同一 idempotency key 的 original payload fingerprint 與 original decision。
 - manual correction 不覆蓋原始 usage record 的差異。
@@ -252,6 +312,7 @@ classDiagram
         +UserId? UserId
         +SubscriptionId? SubscriptionId
         +RequestedCreditsInput RequestedCredits
+        +UsageCreditAmountMode CreditAmountMode
         +IdempotencyKey? IdempotencyKey
         +CorrelationId CorrelationId
         +string Source
@@ -259,10 +320,12 @@ classDiagram
 
     class UsageCreditDecision {
         +UsageDecisionMode Mode
+        +UsageCreditAmountMode CreditAmountMode
         +UsageDecisionResult Result
         +CreditAmount? RequestedCredits
         +CreditAmount CreditsCoveredBySubscriptionAllowance
         +CreditAmount CreditsCoveredByExtraPool
+        +CreditAmount CreditsAbsorbedBySystem
         +UsageWindowBalance FiveHourWindowAfterDecision
         +UsageWindowBalance SevenDayWindowAfterDecision
         +CreditAmount ExtraPoolRemainingAfterDecision
@@ -332,6 +395,7 @@ sequenceDiagram
 | Window decision | `UsageWindowBalance`, `UsageCreditDecision` | TC-WINDOW-001..007 |
 | Extra pool consumption result | `CreditsCoveredByExtraPool`, `ExtraPoolRemainingAfterDecision` | TC-EXTRA-001..002 |
 | Decide-only behavior | `DecideAsync`, `UsageDecisionMode.DecideOnly` | TC-PREVIEW-001..002 |
+| Unknown final credits settlement | `UsageCreditAmountMode.MinimumAvailableBalance`, `CreditsAbsorbedBySystem` | TC-SETTLE-001..002 |
 | Idempotency | `IdempotencyKey`, `UsageConflictReason`, `AuditReference` | TC-IDEMP-001..002 |
 | Isolation | `UserId`, `SubscriptionId`, rejection reasons | TC-ISOLATION-001..005 |
 | Consistency and persistence | `ConsumeAsync`, `AuditReference`, recalculation evidence guidance | TC-CONSISTENCY-001..003 |

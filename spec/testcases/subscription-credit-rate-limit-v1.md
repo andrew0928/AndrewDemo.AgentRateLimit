@@ -192,6 +192,34 @@
 - And: rejection reason 為 `insufficient-credits`
 - And: usage status 不變
 
+## Unknown Final Credits And Settlement
+
+> 本節是新增用途的 draft testcase：執行當下尚無法確認最終 requested credits，只能先確認 subscription 還有可用額度。實際費用在執行完成後才知道，且已發生成本時不可回頭 reject。
+
+### TC-SETTLE-001 unknown final credits 先用 minimum balance 判定
+
+- Given: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 500
+- When: usage request 的 credit amount mode 為 `minimum-available-balance`
+- And: minimum required credits 為 1
+- Then: decision result 為 `accepted`
+- And: 不可消耗 5h window、7d window 或 extra pool
+- And: 回傳結果必須能讓 caller 知道這不是 exact requested credits 的扣款結果
+
+### TC-SETTLE-002 final credits 超過剩餘額度時仍忠實記錄並由系統吸收
+
+- Given: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 500
+- And: caller 已通過 minimum balance 判定並完成實際工作
+- When: usage settlement 的 actual credits 為 120
+- Then: decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 100
+- And: credits absorbed by system 為 20
+- And: 5h remaining 變為 0
+- And: 7d remaining 變為 380
+- And: audit trail 必須忠實記錄 actual credits、covered credits 與 system absorbed credits
+- And: 系統吸收的 20 credits 不因本次 request 立即恢復，必須等 rolling window reset 規則釋放
+
 ## Idempotency
 
 ### TC-IDEMP-001 相同 idempotency key 與相同 payload 重送不重複扣款
