@@ -254,6 +254,261 @@
 - And: audit trail 必須忠實記錄 actual credits、covered credits 與 system absorbed credits
 - And: 系統吸收的 20 credits 不因本次 request 立即恢復，必須等 active window lease 到期後由下一次 admission 重開
 
+## End-To-End Run Outcomes
+
+> 本節對應 `spec/coverage/subscription-credit-rate-limit-v1-decision-table.md` 的 End-To-End Run Outcome Table。除非個別 testcase 另有說明，固定使用 active subscription `sub-a`、5h limit 100、7d limit 1000、detect/admission threshold `D = 1`。
+
+### TC-RUN-001 R1 allowance covers all actual credits
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 1000
+- When: caller 執行一個 run，admission threshold 為 1 credit
+- And: run settlement actual credits 為 50
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 50
+- And: credits covered by extra pool 為 0
+- And: credits absorbed by system 為 0
+- And: 5h remaining 變為 50
+- And: 7d remaining 變為 950
+
+### TC-RUN-002 R2 5h expired then lazy renews before run
+
+- Given: `sub-a` 的 5h window expires time 為 `2026-07-02T04:01:23Z`
+- And: `sub-a` 的 7d window expires time 為 `2026-07-08T23:01:23Z`
+- And: current time 為 `2026-07-02T08:00:00Z`
+- And: `sub-a` 的 7d remaining 為 1000
+- When: caller 執行一個 run，admission threshold 為 1 credit
+- And: run settlement actual credits 為 50
+- Then: admission 先 lazy renew 5h window 為 `2026-07-02T08:00:00Z` 到 `2026-07-02T13:00:00Z`
+- And: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 50
+- And: 5h remaining 變為 50
+- And: 7d remaining 變為 950
+
+### TC-RUN-003 R3 7d expired then lazy renews before run
+
+- Given: `sub-a` 的 5h window expires time 為 `2026-07-08T12:00:00Z`
+- And: `sub-a` 的 7d window expires time 為 `2026-07-08T00:00:00Z`
+- And: current time 為 `2026-07-08T08:00:00Z`
+- And: `sub-a` 的 5h remaining 為 100
+- When: caller 執行一個 run，admission threshold 為 1 credit
+- And: run settlement actual credits 為 50
+- Then: admission 先 lazy renew 7d window 為 `2026-07-08T08:00:00Z` 到 `2026-07-15T08:00:00Z`
+- And: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 50
+- And: 5h remaining 變為 50
+- And: 7d remaining 變為 950
+
+### TC-RUN-004 R4 both windows expired then lazy renew before run
+
+- Given: `sub-a` 的 5h window expires time 為 `2026-07-02T04:01:23Z`
+- And: `sub-a` 的 7d window expires time 為 `2026-07-08T00:00:00Z`
+- And: current time 為 `2026-07-08T08:00:00Z`
+- When: caller 執行一個 run，admission threshold 為 1 credit
+- And: run settlement actual credits 為 50
+- Then: admission 先 lazy renew 5h window 為 `2026-07-08T08:00:00Z` 到 `2026-07-08T13:00:00Z`
+- And: admission 先 lazy renew 7d window 為 `2026-07-08T08:00:00Z` 到 `2026-07-15T08:00:00Z`
+- And: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 50
+- And: 5h remaining 變為 50
+- And: 7d remaining 變為 950
+
+### TC-RUN-005 R5 5h quota unavailable and no extra pool
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 0
+- And: `sub-a` 的 7d remaining 為 1000
+- And: `sub-a` 的 extra pool remaining 為 0
+- When: caller starts run admission with threshold 1 credit
+- Then: admission decision result 為 `rejected`
+- And: rejection reason 為 `insufficient-credits`
+- And: 不可開始 costly work
+- And: 不可建立 consume record
+
+### TC-RUN-006 R6 7d quota unavailable and no extra pool
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 0
+- And: `sub-a` 的 extra pool remaining 為 0
+- When: caller starts run admission with threshold 1 credit
+- Then: admission decision result 為 `rejected`
+- And: rejection reason 為 `insufficient-credits`
+- And: 不可開始 costly work
+- And: 不可建立 consume record
+
+### TC-RUN-007 R7 5h quota unavailable and extra pool needs authorization
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 0
+- And: `sub-a` 的 7d remaining 為 0
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 尚未取得使用 extra pool 的授權
+- When: caller starts run admission with threshold 1 credit
+- Then: admission decision result 為 `rejected`
+- And: rejection reason 為 `extra-pool-authorization-required`
+- And: UI 應提示使用者選擇使用 extra pool 或等待 5h / 7d reset
+- And: 不可建立 consume record
+
+### TC-RUN-008 R8 7d quota unavailable and extra pool needs authorization
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 0
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 尚未取得使用 extra pool 的授權
+- When: caller starts run admission with threshold 1 credit
+- Then: admission decision result 為 `rejected`
+- And: rejection reason 為 `extra-pool-authorization-required`
+- And: UI 應提示使用者選擇使用 extra pool 或等待 7d reset
+- And: 不可建立 consume record
+
+### TC-RUN-009 R9 5h quota unavailable but extra pool authorized
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 0
+- And: `sub-a` 的 7d remaining 為 1000
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 已取得使用 extra pool 的授權
+- When: caller 執行一個 run，admission threshold 為 1 credit
+- And: run settlement actual credits 為 20
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 0
+- And: credits covered by extra pool 為 20
+- And: credits absorbed by system 為 0
+- And: extra pool remaining 變為 980
+
+### TC-RUN-010 R10 7d quota unavailable but extra pool authorized
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 0
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 已取得使用 extra pool 的授權
+- When: caller 執行一個 run，admission threshold 為 1 credit
+- And: run settlement actual credits 為 20
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 0
+- And: credits covered by extra pool 為 20
+- And: credits absorbed by system 為 0
+- And: extra pool remaining 變為 980
+
+### TC-RUN-011 R11 unknown actual exceeds 5h without extra authorization
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 1000
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 尚未取得使用 extra pool 的授權
+- When: caller starts run admission with threshold 1 credit
+- And: costly work 已完成且 actual credits 為 120
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 100
+- And: credits covered by extra pool 為 0
+- And: credits absorbed by system 為 20
+- And: extra pool remaining 仍為 1000
+
+### TC-RUN-012 R12 unknown actual exceeds 7d without extra authorization
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 10
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 尚未取得使用 extra pool 的授權
+- When: caller starts run admission with threshold 1 credit
+- And: costly work 已完成且 actual credits 為 20
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 10
+- And: credits covered by extra pool 為 0
+- And: credits absorbed by system 為 10
+- And: extra pool remaining 仍為 1000
+
+### TC-RUN-013 R13 unknown actual exceeds both windows without extra authorization
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 10
+- And: `sub-a` 的 7d remaining 為 10
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 尚未取得使用 extra pool 的授權
+- When: caller starts run admission with threshold 1 credit
+- And: costly work 已完成且 actual credits 為 20
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 10
+- And: credits covered by extra pool 為 0
+- And: credits absorbed by system 為 10
+- And: extra pool remaining 仍為 1000
+
+### TC-RUN-014 R14 actual exceeds 5h with extra authorization
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 1000
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 已取得使用 extra pool 的授權
+- When: caller starts run admission with threshold 1 credit
+- And: costly work 已完成且 actual credits 為 120
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 100
+- And: credits covered by extra pool 為 20
+- And: credits absorbed by system 為 0
+- And: extra pool remaining 變為 980
+
+### TC-RUN-015 R15 actual exceeds 7d with extra authorization
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 10
+- And: `sub-a` 的 extra pool remaining 為 1000
+- And: 本次 operation 已取得使用 extra pool 的授權
+- When: caller starts run admission with threshold 1 credit
+- And: costly work 已完成且 actual credits 為 20
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 10
+- And: credits covered by extra pool 為 10
+- And: credits absorbed by system 為 0
+- And: extra pool remaining 變為 990
+
+### TC-RUN-016 R16 actual exceeds allowance and authorized extra pool is unavailable
+
+- Given: `sub-a` 的 5h window 尚未過期
+- And: `sub-a` 的 7d window 尚未過期
+- And: `sub-a` 的 5h remaining 為 100
+- And: `sub-a` 的 7d remaining 為 1000
+- And: `sub-a` 的 extra pool remaining 為 0
+- And: 本次 operation 已取得使用 extra pool 的授權
+- When: caller starts run admission with threshold 1 credit
+- And: costly work 已完成且 actual credits 為 120
+- Then: admission decision result 為 `accepted`
+- And: consume decision result 為 `accepted`
+- And: credits covered by subscription window allowance 為 100
+- And: credits covered by extra pool 為 0
+- And: credits absorbed by system 為 20
+- And: extra pool remaining 仍為 0
+
 ## Idempotency
 
 ### TC-IDEMP-001 相同 idempotency key 與相同 payload 重送不重複扣款

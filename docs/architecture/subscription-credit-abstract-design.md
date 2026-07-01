@@ -419,9 +419,12 @@ sequenceDiagram
 | Audit and reconciliation | Not an `.Abstract` interface; implementation/schema concern | TC-AUDIT-001..004 |
 | Status output | Not an `.Abstract` interface; decision still returns after-decision balances | TC-STATUS-001..002 |
 
-## 12. Open Review Points
+## 12. Freeze Notes
 
-1. `DecideAsync` 命名是否比 `PreviewAsync` 更貼近「判定」：目前建議用 `DecideAsync`，並在文件中說明它對應 V1 的 preview behavior。
-2. `RequestedCreditsInput` 是否接受 `string RawValue`：這能保留 fractional input 並回傳 `credits-not-integer`，但 host adapter 需要負責把 JSON number 轉成不失真的 raw value。
-3. Consume evidence 要放在哪份下一階段文件：建議另開 `docs/architecture/subscription-credit-schema-design.md`，專門處理最小 schema 如何保護 append-only consume record，不污染 `.Abstract`。
-4. Extra pool adjustment 與 manual correction：不進 `.Abstract`；後續若要實作，應由 admin/storage design 定義，不改正常服務處理 contract。
+這些原本的 review points 已收斂為第一版開發基準：
+
+1. service surface 使用 `DecideAsync` / `ConsumeAsync`，其中 `DecideAsync` 對應 V1 admission / preview behavior。
+2. `RequestedCreditsInput` 使用 raw value 保留 fractional、zero、negative、empty 等 invalid case；host adapter 需把外部輸入轉成不失真的 raw value。
+3. consume evidence 與 minimal schema 已移到 [subscription-credit-schema-design.md](/Users/andrew/code-work/AndrewDemo.AgentRateLimit/docs/architecture/subscription-credit-schema-design.md)，不污染 `.Abstract` service surface。
+4. extra pool supply / adjustment 的 source of truth 是 `subscription_extra_pool_record`；extra pool consumption 由 `subscription_consume_record.credits_covered_by_extra_pool` 表達。
+5. manual correction 不進 `.Abstract`；若需要修正已發生 consume，使用 append-only correction record，不改正常服務處理 contract。

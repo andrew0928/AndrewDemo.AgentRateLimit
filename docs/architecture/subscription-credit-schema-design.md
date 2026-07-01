@@ -335,4 +335,4 @@ for each infra log entry that represents billable/costly usage:
 - correction record shape
 - cost allocation snapshot structure
 - infra log matching key priority
-- whether extra pool adjustment needs its own ledger
+- exact `subscription_extra_pool_record` kind values and admin actor fields
