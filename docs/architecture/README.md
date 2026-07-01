@@ -4,6 +4,7 @@
 
 - [Agent Rate Limit Harness Design](./harness-design.md)
 - [Reference Project Principles](./reference-project-principles.md)
+- [Subscription Credit `.Abstract` Design](./subscription-credit-abstract-design.md)
 
 ## 使用方式
 
