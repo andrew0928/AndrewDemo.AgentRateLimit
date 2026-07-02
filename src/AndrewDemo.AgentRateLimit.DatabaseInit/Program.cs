@@ -16,6 +16,13 @@ foreach (var seed in LocalSubscriptionCreditSeeds.All)
 }
 
 Console.WriteLine($"Initialized subscription credit database with {LocalSubscriptionCreditSeeds.All.Length} subscriptions.");
+Console.WriteLine();
+Console.WriteLine("Local test access tokens:");
+foreach (var seed in LocalSubscriptionCreditSeeds.All)
+{
+    Console.WriteLine($"- {seed.SubscriptionId} ({seed.Purpose})");
+    Console.WriteLine($"  Authorization: Bearer {seed.AccessToken}");
+}
 
 internal sealed record LocalSubscriptionSeed(
     string Purpose,

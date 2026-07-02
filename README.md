@@ -37,9 +37,12 @@
 
 - `AndrewDemo.AgentRateLimit.Abstract`：scenario、policy、decision、metric contract。
 - `AndrewDemo.AgentRateLimit.Core`：subscription credit usage service、DI builder、SQLite-backed admission / consume state。
+- `AndrewDemo.AgentRateLimit.Api`：subscription credit HTTP REST API，使用 bearer token resolve subscription scope。
+- `AndrewDemo.AgentRateLimit.DatabaseInit`：本機/docker compose seed database initializer。
 - `AndrewDemo.AgentRateLimit.Simulation`：traffic profile、可控時間、provider stub、golden scenario。
 - `AndrewDemo.AgentRateLimit.Cli`：本機執行 scenario 與輸出 CSV/JSON summary。
 - `AndrewDemo.AgentRateLimit.Core.Tests`：subscription credit End-to-End run outcome xUnit tests。
+- `AndrewDemo.AgentRateLimit.Api.Tests`：subscription credit HTTP API blackbox xUnit tests。
 
 ## 驗收梯
 

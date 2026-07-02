@@ -26,3 +26,9 @@
 | 10 | disabled subscription rejection sample | `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA` | `sub-disabled` | 100 | 1000 | 0 | disabled |
 
 All tokens are 32 uppercase hexadecimal characters without hyphen and are stored in `subscription_access_token`.
+
+## Console Output
+
+`AndrewDemo.AgentRateLimit.DatabaseInit` 會在 seed 完成後把 local test access tokens 印到 console，方便用 `docker compose logs database-init` 或 `docker compose up` 直接複製 `Authorization: Bearer ...`。
+
+這些 token 是本機測試資料，不是 production token provisioning workflow。若未來 database-init 被改成 production bootstrap，不能把真實 credential 印到 log。

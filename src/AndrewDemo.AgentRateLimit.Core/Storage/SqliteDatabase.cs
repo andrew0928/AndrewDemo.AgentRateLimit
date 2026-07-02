@@ -12,6 +12,11 @@ internal sealed class SqliteDatabase : IDisposable
     private IntPtr _handle;
     private bool _disposed;
 
+    static SqliteDatabase()
+    {
+        NativeLibrary.SetDllImportResolver(typeof(SqliteDatabase).Assembly, ResolveNativeLibrary);
+    }
+
     private SqliteDatabase(IntPtr handle)
     {
         _handle = handle;
@@ -118,6 +123,28 @@ internal sealed class SqliteDatabase : IDisposable
     }
 
     internal static byte[] ToUtf8(string value) => Encoding.UTF8.GetBytes(value);
+
+    private static IntPtr ResolveNativeLibrary(
+        string libraryName,
+        System.Reflection.Assembly assembly,
+        DllImportSearchPath? searchPath)
+    {
+        if (!StringComparer.Ordinal.Equals(libraryName, "sqlite3") ||
+            !RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return IntPtr.Zero;
+        }
+
+        foreach (var candidate in new[] { "sqlite3", "libsqlite3.so.0", "libsqlite3.so" })
+        {
+            if (NativeLibrary.TryLoad(candidate, assembly, searchPath, out var handle))
+            {
+                return handle;
+            }
+        }
+
+        return IntPtr.Zero;
+    }
 
     private static class Native
     {

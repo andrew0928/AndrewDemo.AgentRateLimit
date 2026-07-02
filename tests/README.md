@@ -1,10 +1,16 @@
 # Tests
 
-此目錄目前尚未建立測試專案。實作開始後，測試應直接對齊 `spec/testcases`。
+此目錄放置直接對齊 `spec/testcases` 與 architecture decision table 的驗收測試。
+
+## Current Test Projects
+
+- `AndrewDemo.AgentRateLimit.Abstract.Tests`：示範 `.Abstract` developer experience，作為 contract 使用方式草案。
+- `AndrewDemo.AgentRateLimit.Core.Tests`：驗證 subscription credit End-to-End run outcome decision table。
+- `AndrewDemo.AgentRateLimit.Api.Tests`：以實際 Kestrel HTTP server 做 API blackbox tests，只用 HTTP response 驗證結果。
 
 ## Planned Test Types
 
-- Contract tests：驗證 manifest validation、decision model、metric model。
+- General harness contract tests：驗證 manifest validation、decision model、metric model。
 - Scenario tests：驗證 burst、quota exhaustion、priority reservation、fairness、retry。
 - Replay tests：同一 scenario 連跑兩次，normalized timeline 必須一致。
 - CLI smoke tests：執行 sample scenario，檢查 JSON/CSV summary。
