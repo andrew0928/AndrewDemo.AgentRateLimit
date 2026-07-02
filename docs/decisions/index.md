@@ -13,6 +13,7 @@
 | 3 | [subscription credit 採 lazy quota window lease，不採 per-usage rolling window](./2026-07-01-subscription-credit-lazy-quota-window-lease.md) | accepted for behavior; storage details partially superseded | subscription credit V1 window semantics 修正 | supersedes 第 2 筆的 5h / 7d rolling-window 假設；storage source-of-truth 由第 4 筆取代 |
 | 4 | [subscription credit 以 consume record 作為唯一帳務 source of truth](./2026-07-01-subscription-credit-consume-record-source-of-truth.md) | accepted | minimal storage source of truth | supersedes 先前 schema draft 中為了重算 window state 拆出的額外 source-fact tables |
 | 5 | [extra pool 必須 explicit authorization 後才可消耗](./2026-07-01-subscription-credit-extra-pool-explicit-authorization.md) | accepted | extra pool usage semantics | 修正 extra pool 不得在 settlement overrun 時被靜默消耗 |
+| 6 | [subscription credit HTTP API 採 Bearer access token 綁定 subscription scope](./2026-07-02-subscription-credit-http-api-token-auth.md) | proposed | HTTP API hosting 與基本安全機制 | 新增 `subscription_access_token` table 與 token-resolved subscription scope；等待 review 後進入 implementation |
 
 ## Current Effective Decisions
 
@@ -21,6 +22,7 @@
 - Subscription credit window semantics：採 lazy quota window lease；長時間 idle 不發生背景 reset，下一次 admission / consume 才在過期時開新 5h / 7d lease。
 - Subscription credit storage source of truth：append-only `subscription_consume_record` 是 consume source of truth；append-only `subscription_extra_pool_record` 是 extra pool supply/adjustment source of truth；time window state 是 `subscription_account` 內的 mutable admission control state。
 - Extra pool usage：只有本次 operation 已 explicit authorization 時才可消耗 extra pool；未授權 settlement overrun 必須 system absorbed。
+- Proposed HTTP API security baseline：所有 subscription credit HTTP API 先以 Bearer access token resolve subscription scope；request body 不可指定或覆蓋 subscription id。
 
 ## Superseded Notes
 
