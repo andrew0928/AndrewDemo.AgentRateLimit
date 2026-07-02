@@ -49,6 +49,7 @@ public sealed class SubscriptionCreditSqliteStore
                 {
                     AppendExtraPoolRecord(
                         database,
+                        "extra-seed-" + seed.SubscriptionId,
                         seed.SubscriptionId,
                         seed.UserId,
                         seed.ExtraPoolRemainingCredits,
@@ -64,6 +65,60 @@ public sealed class SubscriptionCreditSqliteStore
                 database.Rollback();
                 throw;
             }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async ValueTask SeedAccessTokenAsync(
+        string token,
+        string subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionId);
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            using var database = OpenInitializedDatabase();
+            database.BeginImmediateTransaction();
+            try
+            {
+                UpsertAccessToken(database, token, subscriptionId);
+                database.Commit();
+            }
+            catch
+            {
+                database.Rollback();
+                throw;
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async ValueTask<string?> ResolveAccessTokenAsync(
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            using var database = OpenInitializedDatabase();
+            using var statement = database.Prepare(
+                "select subscription_id from subscription_access_token where token = ?1;");
+            statement.BindText(1, token);
+
+            return statement.Step()
+                ? statement.ColumnText(0)
+                : null;
         }
         finally
         {
@@ -491,7 +546,31 @@ public sealed class SubscriptionCreditSqliteStore
                 correlation_id text null,
                 external_reference text null
             );
+
+            create table if not exists subscription_access_token (
+                token text primary key,
+                subscription_id text not null
+            );
             """);
+    }
+
+    private static void UpsertAccessToken(
+        SqliteDatabase database,
+        string token,
+        string subscriptionId)
+    {
+        using var statement = database.Prepare("""
+            insert into subscription_access_token (
+                token,
+                subscription_id)
+            values (?1, ?2)
+            on conflict(token) do update set
+                subscription_id = excluded.subscription_id;
+            """);
+
+        statement.BindText(1, token);
+        statement.BindText(2, subscriptionId);
+        statement.Execute();
     }
 
     private static void UpsertAccount(SqliteDatabase database, SubscriptionCreditAccountSeed seed)
@@ -741,6 +820,7 @@ public sealed class SubscriptionCreditSqliteStore
 
     private static void AppendExtraPoolRecord(
         SqliteDatabase database,
+        string recordId,
         string subscriptionId,
         string userId,
         int creditsDelta,
@@ -749,7 +829,7 @@ public sealed class SubscriptionCreditSqliteStore
         DateTimeOffset occurredUtc)
     {
         using var statement = database.Prepare("""
-            insert into subscription_extra_pool_record (
+            insert or ignore into subscription_extra_pool_record (
                 record_id,
                 subscription_id,
                 user_id,
@@ -764,7 +844,7 @@ public sealed class SubscriptionCreditSqliteStore
             values (?1, ?2, ?3, 'top-up', ?4, ?5, ?6, ?7, ?8, null, null);
             """);
 
-        statement.BindText(1, "extra-" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+        statement.BindText(1, recordId);
         statement.BindText(2, subscriptionId);
         statement.BindText(3, userId);
         statement.BindInt(4, creditsDelta);

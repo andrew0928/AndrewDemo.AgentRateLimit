@@ -1,0 +1,47 @@
+@host = http://localhost:5080
+@token = 0123456789ABCDEFFEDCBA9876543210
+
+### Health
+GET {{host}}/health
+
+### Decide: minimum available balance probe
+POST {{host}}/v1/subscription-credit/decide
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "requestedCredits": "1",
+  "creditAmountMode": "minimum-available-balance",
+  "extraPoolAuthorization": "not-authorized",
+  "idempotencyKey": "manual-run-001",
+  "correlationId": "corr-manual-run-001-admission",
+  "source": "manual-http"
+}
+
+### Consume: actual usage settlement
+POST {{host}}/v1/subscription-credit/consume
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "requestedCredits": "120",
+  "creditAmountMode": "exact-credits",
+  "extraPoolAuthorization": "not-authorized",
+  "idempotencyKey": "manual-run-001",
+  "correlationId": "corr-manual-run-001-settlement",
+  "source": "manual-http"
+}
+
+### Invalid token format: lowercase credential should fail
+POST {{host}}/v1/subscription-credit/decide
+Authorization: Bearer 0123456789abcdeffedcba9876543210
+Content-Type: application/json
+
+{
+  "requestedCredits": "1",
+  "creditAmountMode": "minimum-available-balance",
+  "extraPoolAuthorization": "not-authorized",
+  "idempotencyKey": "manual-invalid-token",
+  "correlationId": "corr-manual-invalid-token",
+  "source": "manual-http"
+}

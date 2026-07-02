@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AndrewDemo.AgentRateLimit.Abstract/AndrewDemo.AgentRateLimit.Abstract.csproj" />
+    <Project Path="src/AndrewDemo.AgentRateLimit.Api/AndrewDemo.AgentRateLimit.Api.csproj" />
     <Project Path="src/AndrewDemo.AgentRateLimit.Core/AndrewDemo.AgentRateLimit.Core.csproj" />
+    <Project Path="src/AndrewDemo.AgentRateLimit.DatabaseInit/AndrewDemo.AgentRateLimit.DatabaseInit.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AndrewDemo.AgentRateLimit.Abstract.Tests/AndrewDemo.AgentRateLimit.Abstract.Tests.csproj" />

@@ -1,0 +1,29 @@
+services:
+  database-init:
+    build:
+      context: .
+      dockerfile: docker/database-init.Dockerfile
+    environment:
+      SUBSCRIPTION_CREDIT_SQLITE: "Data Source=/data/subscription-credit.db"
+    volumes:
+      - subscription-credit-data:/data
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    depends_on:
+      database-init:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_URLS: "http://0.0.0.0:8080"
+      SUBSCRIPTION_CREDIT_SQLITE: "Data Source=/data/subscription-credit.db"
+      SubscriptionCredit__FixedUtcNow: "2026-07-01T23:10:00Z"
+    ports:
+      - "5080:8080"
+    volumes:
+      - subscription-credit-data:/data
+
+volumes:
+  subscription-credit-data:
