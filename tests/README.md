@@ -1,17 +1,21 @@
 # Tests
 
-此目錄目前尚未建立測試專案。實作開始後，測試應直接對齊 `spec/testcases`。
+測試直接對齊 `spec/testcases`。
 
-## Planned Test Types
+## Current Layout
 
-- Contract tests：驗證 manifest validation、decision model、metric model。
-- Scenario tests：驗證 burst、quota exhaustion、priority reservation、fairness、retry。
-- Replay tests：同一 scenario 連跑兩次，normalized timeline 必須一致。
-- CLI smoke tests：執行 sample scenario，檢查 JSON/CSV summary。
+```text
+tests/
+└── AndrewDemo.AgentRateLimit.Core.Tests/
+    ├── TestSupport/                      # ManualTimeProvider（forward-only）、SQLite temp-db fixture
+    ├── SubscriptionCreditRateLimitV1/    # 1:1 對齊 spec/testcases 的 TC-* 驗收測試 + edge cases
+    └── SmokeTests.cs                     # 端到端 smoke
+```
 
 ## Test Rules
 
-- 不使用 realtime sleep。
-- 時間一律透過 controllable clock 推進。
+- 不使用 realtime sleep；時間一律透過 controllable clock（`ManualTimeProvider`）推進。
 - 不用 console log 作為 assertion source。
 - 每個 policy change 至少補一個 Given/When/Then testcase。
+- Restart 行為以同一 SQLite 檔案重建 service instance 驗證（`SubscriptionCreditServiceFixture.Restart`）。
+- 每個 test 一個獨立 fixture 與獨立 temp database，測試之間無共享狀態。

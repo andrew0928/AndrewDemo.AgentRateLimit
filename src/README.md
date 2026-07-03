@@ -1,22 +1,23 @@
 # Source Layout
 
-此目錄目前尚未建立 production code。第一個 implementation phase 應採以下分層。
+目前已建立 `Subscription Credit Rate Limit V1` 的實作切片；rate-limit harness（Simulation/Cli）尚未開始。
 
-## Planned Projects
+## Current Projects
 
 ```text
 src/
 ├── AndrewDemo.AgentRateLimit.Abstract/
-├── AndrewDemo.AgentRateLimit.Core/
-├── AndrewDemo.AgentRateLimit.Simulation/
-└── AndrewDemo.AgentRateLimit.Cli/
+│   └── SubscriptionCredit/    # usage/administration contracts、decision/status/audit/reconciliation models
+└── AndrewDemo.AgentRateLimit.Core/
+    └── SubscriptionCredit/    # SqliteSubscriptionCreditService（Microsoft.Data.Sqlite）
 ```
+
+實作決策見 [docs/decisions/2026-07-03-subscription-credit-v1-sqlite-implementation.md](/Users/andrew/code-work/AndrewDemo.AgentRateLimit/docs/decisions/2026-07-03-subscription-credit-v1-sqlite-implementation.md)。
 
 ## Boundary Rules
 
-- `Abstract` 只放穩定 contract，不依賴 provider SDK。
-- `Core` 放 deterministic orchestration，不讀取 console input，不做 provider-specific protocol。
-- `Simulation` 放 controllable clock、traffic generator、provider stub。
-- `Cli` 是 composition root，負責載入 scenario、組裝 runner、輸出 summary。
+- `Abstract` 只放穩定 contract，不依賴 provider SDK 或資料庫套件。
+- `Core` 放 deterministic orchestration 與 persistence，不讀取 console input；時間一律透過 `TimeProvider` 注入。
+- 未來 harness 專案（`Simulation`、`Cli`）依原規劃加入。
 
 若新增 project，先確認它是否真的代表新的 ownership boundary；不要只因檔案多就拆 project。
