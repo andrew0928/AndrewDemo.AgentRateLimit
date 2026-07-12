@@ -9,6 +9,7 @@
 - 問/答字數: 可見 user/assistant 文字去除空白後估算，CJK 與英數皆以字元數計。
 - 時間: Codex `task_complete.duration_ms`，包含 agent 推論、工具呼叫、build/test 等等待。
 - Token: Codex transcript 的 `event_msg.token_count.last_token_usage`；`Reasoning` 另列 `reasoning_output_tokens`。
+- `Turns`、token、churn、final LOC 等統一欄位定義見 [commit-effort-and-abstract-review-report.md](commit-effort-and-abstract-review-report.md#結論摘要欄位定義)。
 
 ## Commit-step 總表
 

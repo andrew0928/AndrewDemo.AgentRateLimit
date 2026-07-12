@@ -3,7 +3,7 @@
 ## 來源與口徑
 
 - Branch: `fable5`
-- Commit range: `e60674f` -> `f6920cf` -> `21f6f66`
+- 評估 commit: `21f6f66`；其 parent `f6920cf` 為無關的 branch/build-output cleanup，依 user 指示排除。
 - 主要 transcript: `/Users/andrew/.claude/projects/-Users-andrew-code-work-AndrewDemo-AgentRateLimit/234834cf-84fd-442d-9c19-7732194a39bb.jsonl`
 - 前置 transcript: `/Users/andrew/.claude/projects/-Users-andrew-code-work-AndrewDemo-AgentRateLimit/28a65a4a-a574-44d1-b1dd-32529b5b8620.jsonl`
 - 變更量來源: `git show --stat` / `git show --numstat`
@@ -11,6 +11,7 @@
 - Claude token: 依 timestamp 區間加總唯一 assistant `message.id` 的 `message.usage`，包含 `input_tokens`、`cache_creation_input_tokens`、`cache_read_input_tokens`、`output_tokens`。
 - Claude transcript 未提供可與 Codex `reasoning_output_tokens` 對齊的 reasoning token 欄位，因此本報告不列 reasoning。
 - F1 的 commit timestamp 與最後回答之間跨越等待時間；因此同時列 wall interval 與 transcript `turn_duration` active time。
+- `Turns`、token、churn、final LOC 等統一欄位定義見 [commit-effort-and-abstract-review-report.md](commit-effort-and-abstract-review-report.md#結論摘要欄位定義)。
 
 ## 前置 session
 
@@ -27,33 +28,11 @@
 
 | Step | Commit range | Commit time | Turns | Wall interval | Active turn time | 問字數 | 答字數 | Tokens |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| F0 branch/setup cleanup | `e60674f` -> `f6920cf` | 2026-07-03 01:28:28 +08:00 | 3 | 6m 31s | about 3m 00s | 145 | 2,773 | 1,219,258 |
 | F1 one-shot implementation | `f6920cf` -> `21f6f66` | 2026-07-03 09:36:47 +08:00 | 2 | 8h 08m 44s | 52m 41s | 47 | 3,912 | 13,308,383 |
 
-## F0: 建 branch 與 cleanup
+## 排除項目
 
-### 對話摘錄
-
-- User: 「based on main branch (first commit), create new branch: fable5」
-- User: 「我不清楚這些檔案怎麼會跑進來... 我要乾淨的 main branch... 替我檢驗」
-- User: 「switch to fable5 branch, and commit」
-- Agent: 檢查 main/branch 狀態後，判定 untracked 檔案主要來自 nested `bin/obj` build outputs，修正 `.gitignore`。
-
-### Token breakdown
-
-| Model | Messages | Input | Cache creation | Cache read | Output | Total |
-|---|---:|---:|---:|---:|---:|---:|
-| `claude-fable-5` | 3 | 7,463 | 11,883 | 71,673 | 508 | 91,527 |
-| `claude-sonnet-5` | 20 | 610 | 36,385 | 1,083,550 | 7,186 | 1,127,731 |
-| Total | 23 | 8,073 | 48,268 | 1,155,223 | 7,694 | 1,219,258 |
-
-### Changes
-
-- `.gitignore`: 1 file, +2/-2
-
-### Step summary
-
-這一步不是產品實作，而是第三組對照組的 branch hygiene。Claude Code 起初從 `main` 建 `fable5`，但因 build artifacts 沒有被 main 的 `.gitignore` 完整排除，切 branch 後出現 untracked nested output。這個 commit 修正 ignore 規則，讓後續 implementation 不把 build output 混進 branch。
+`f6920cf Fix gitignore to exclude nested bin/obj build output` 與其對應 session 回合只處理 branch hygiene，不屬於 Fable5 產品實作實驗。本報告不將該 commit 的對話、時間、token、tool call 或 line changes 納入比較。
 
 ## F1: Fable5 goal-mode implementation
 
