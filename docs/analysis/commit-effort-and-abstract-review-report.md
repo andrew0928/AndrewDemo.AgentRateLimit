@@ -195,3 +195,31 @@ Claude Code main transcript 的 120 次 tool calls 只代表 orchestration surfa
 1. `Human prompts + 人工決策/修正`：需求釐清與 reviewer 介入量。
 2. `Agent rounds + tool calls + tokens`：agent 執行與推論量。
 3. `.Abstract final LOC ratio + per-commit production/test/Abstract churn`：最終 contract 占比與每次實際變更的 review 面積。
+
+## Appendix
+
+### A. Branch Comparison
+
+投入統計排除共用 baseline `e60674f`；`Prod LOC` 與 `Contract LOC` 取各 branch final commit 的 physical LOC。
+
+| Branch | Prompts | Decisions | Tool calls | Tokens | Prod LOC | Contract LOC |
+|---|---:|---:|---:|---:|---:|---:|
+| `goal-mode` | 2 | 0 | 66 | 6,316,045 | 1,448 | 97 |
+| `architect-mode` | 33 | 15 | 670 | 41,596,755 | 2,631 | 158 |
+| `fable5` | 2 | 0 | 120 | 13,308,383 | 2,025 | 552 |
+
+### B. Architect-mode Commit Breakdown
+
+只列 architect-mode 的實驗 commit，排除共用 baseline `e60674f`。`Human prompts` 取原表 `U/A` 的 `U`；diff 格式為 `+新增/-刪除 (churn)`。
+
+| Commit | Goal | Prompts | Decisions | Tool calls | Tokens | Prod diff | Tests diff | Contract diff |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `3daf49f` | 第一版 `.Abstract` architecture draft | 1 | 0 | 38 | 633,865 | 0 | 0 | 0 |
+| `b84c06e` | 砍除 reconciliation / adjustment 等過寬 surface | 1 | 1 | 29 | 1,054,548 | 0 | 0 | 0 |
+| `bab4a8f` | 用實際 `.Abstract` code 與 test sketch 驗證 DX | 4 | 1 | 86 | 6,099,353 | +150/-0 (150) | +185/-0 (185) | +150/-0 (150) |
+| `d2cd72b` | 收斂 schema、window 與 accounting truth | 16 | 6 | 143 | 10,924,453 | +8/-0 (8) | +1/-0 (1) | +8/-0 (8) |
+| `53982de` | 展開並凍結 16 個 E2E run outcomes | 4 | 3 | 69 | 3,893,463 | 0 | 0 | 0 |
+| `5958425` | 依 frozen contract 實作 Core | 2 | 0 | 94 | 6,051,688 | +1,659/-0 (1,659) | +575/-76 (651) | 0 |
+| `3d9d63a` | 先凍結 HTTP token / subscription scope spec | 2 | 1 | 32 | 3,054,420 | 0 | 0 | 0 |
+| `d2e2937` | Minimal API、Docker Compose、database-init | 1 | 1 | 55 | 2,180,873 | +782/-2 (784) | 0 | 0 |
+| `e8f83d0` | API blackbox tests、Docker SQLite fix、token visibility | 2 | 2 | 124 | 7,704,092 | +34/-0 (34) | +859/-0 (859) | 0 |
